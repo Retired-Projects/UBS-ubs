@@ -246,8 +246,8 @@ CDpp7AANizXjfMqv3cvuAoiI7CSH02h0TNH4aL9+xyqsdb9P6rN1XYp5Tw==
 -----END PUBLIC KEY-----
 """
 
-VERSION = "3.11.1"
-REPOSITORY = "https://raw.githubusercontent.com/Claude-Personal/ubs"
+VERSION = "3.11.2"
+REPOSITORY = "https://raw.githubusercontent.com/Retired-Projects/UBS-ubs"
 RELEASE_REF = os.environ.get("UBS_INSTALL_REF", f"v{VERSION}")
 BASE_URL = os.environ.get("UBS_INSTALL_BASE_URL", f"{REPOSITORY}/{RELEASE_REF}").rstrip("/") + "/"
 ALLOW_FILE = os.environ.get("UBS_INSTALL_ALLOW_FILE", "false") == "true"

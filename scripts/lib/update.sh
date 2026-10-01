@@ -17,8 +17,8 @@ fi
 # 그대로 통과할 수 있었다. 서명 개인키는 이 레포에 없고 로컬(릴리스 담당자
 # 머신)에만 있다 — scripts/sign-update-manifest.sh 로 릴리스마다 수동 서명한다.
 
-UBS_UPDATE_DEFAULT_BASE_URL="https://raw.githubusercontent.com/Claude-Personal/ubs/main"
-UBS_UPDATE_RELEASE_ROOT="https://raw.githubusercontent.com/Claude-Personal/ubs"
+UBS_UPDATE_DEFAULT_BASE_URL="https://raw.githubusercontent.com/Retired-Projects/UBS-ubs/main"
+UBS_UPDATE_RELEASE_ROOT="https://raw.githubusercontent.com/Retired-Projects/UBS-ubs"
 
 # scripts/sign-update-manifest.sh 로 서명할 때 쓰는 개인키와 짝을 이루는 공개키.
 # 이 상수는 install.sh에도 동일하게 박혀 있다 — 둘 중 하나만 바꾸면 안 되고,
