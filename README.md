@@ -41,7 +41,7 @@ flowchart LR
 ### 저장소에서 실행
 
 ```bash
-git clone https://github.com/ubs-Paltform/ubs.git
+git clone https://github.com/Retired-Projects/UBS-ubs.git
 cd ubs
 
 # 감지 결과 확인
@@ -57,7 +57,7 @@ cd ubs
 ### 설치 후 실행
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ubs-Paltform/ubs/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Retired-Projects/UBS-ubs/main/install.sh | bash
 ```
 
 설치기는 관리 대상 파일을 staging하고 checksum·manifest를 검증한 뒤 원자적으로 적용한다. 기존 파일을 교체하려면 `UBS_FORCE=true`를 명시한다.
@@ -242,11 +242,11 @@ sequenceDiagram
 첫 설치의 provenance를 별도로 확인하려면:
 
 ```bash
-UBS_INSTALL_REF=v3.11.1
-curl -fsSL "https://raw.githubusercontent.com/ubs-Paltform/ubs/$UBS_INSTALL_REF/install.sh" -o install.sh
+UBS_INSTALL_REF=v3.11.2
+curl -fsSL "https://raw.githubusercontent.com/Retired-Projects/UBS-ubs/$UBS_INSTALL_REF/install.sh" -o install.sh
 gh attestation verify install.sh \
-  --repo ubs-Paltform/ubs \
-  --signer-workflow ubs-Paltform/ubs/.github/workflows/attest-release.yml
+  --repo Retired-Projects/UBS-ubs \
+  --signer-workflow Retired-Projects/UBS-ubs/.github/workflows/attest-release.yml
 UBS_INSTALL_REF="$UBS_INSTALL_REF" bash install.sh
 ```
 

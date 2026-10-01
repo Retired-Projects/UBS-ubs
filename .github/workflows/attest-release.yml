@@ -8,7 +8,7 @@ name: Attest release artifacts
 # OIDC 발급자(Fulcio)"로 바뀌므로, 저장소/계정만 탈취해서는 위조 attestation을 만들 수 없다
 # (별도로 GitHub의 OIDC 토큰 발급 파이프라인 자체를 침해해야 한다).
 #
-# 검증: gh attestation verify install.sh --owner ubs-Paltform
+# 검증: gh attestation verify install.sh --owner Retired-Projects
 # (gh CLI 2.49+ 내장 명령, 별도 cosign 설치 불필요)
 
 on:

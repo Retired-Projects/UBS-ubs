@@ -139,9 +139,9 @@ jobs:
               "UBS_JOBS", "UBS_INSTALL_MODE", "UBS_MANAGE_GITIGNORE",
               "UBS_GRADLE_FLAGS", "UBS_LANG", "graph --json",
               "ubs.dependencies.json", "ios-xcode", "scripts/ubs_mcp.py",
-              "UBS_MCP_ROOT", "--repo ubs-Paltform/ubs",
-              "--signer-workflow ubs-Paltform/ubs/.github/workflows/attest-release.yml",
-              "raw.githubusercontent.com/ubs-Paltform/ubs/$UBS_INSTALL_REF/install.sh",
+              "UBS_MCP_ROOT", "--repo Retired-Projects/UBS-ubs",
+              "--signer-workflow Retired-Projects/UBS-ubs/.github/workflows/attest-release.yml",
+              "raw.githubusercontent.com/Retired-Projects/UBS-ubs/$UBS_INSTALL_REF/install.sh",
           ):
               assert required in text, f"README.md is missing current feature reference {required}"
           workflow = Path(".github/workflows/attest-release.yml").read_text(encoding="utf-8")
