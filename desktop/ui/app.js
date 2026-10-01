@@ -36,6 +36,8 @@
   let versionPreviewRequest = 0;
   let lastBuildResult = null;
   let runStatusState = { key: "ready", tone: "", values: {} };
+  let trackedScreen = null;
+  let resultProjectPath = null;
 
   const elements = {
     addProject: document.querySelector("#add-project"),
@@ -76,6 +78,26 @@
     localeOptions: [...document.querySelectorAll(".locale-option")]
   };
   let logRenderQueued = false;
+
+  // 계측: 이름·동작은 Rust 쪽 허용 목록(analytics.rs)으로만 받는다. 실패는 무시한다.
+  function track(action, detail) {
+    invoke?.("analytics_ui", { action, detail: detail ?? null })?.catch(() => {});
+  }
+
+  function syncScreen() {
+    // 결과 칸은 다른 프로젝트를 골라도 남아 있어서, 결과가 지금 프로젝트의 것일 때만 결과 화면으로 센다.
+    const showingResult = Boolean(lastBuildResult) && selectedProject?.path === resultProjectPath;
+    const name = running
+      ? "/build"
+      : showingResult
+        ? "/build/result"
+        : !elements.projectChoice.hidden
+          ? "/project/choose"
+          : selectedProject ? "/project" : "/welcome";
+    if (!invoke || name === trackedScreen) return;
+    trackedScreen = name;
+    invoke("analytics_screen", { name }).catch(() => {});
+  }
 
   function resolveLocale(languages) {
     const language = languages.find(Boolean)?.toLowerCase() || "en";
@@ -123,6 +145,7 @@
     if (running || !["ko", "en"].includes(nextLocale) || nextLocale === locale) return;
     locale = nextLocale;
     storage?.setItem(localeKey, locale);
+    track("locale_changed");
     applyLocale();
     applySelectedProject();
     setProjectState(
@@ -253,6 +276,7 @@
     if (selectedProject) setPipeline("validate");
     else setPipeline(null);
     refreshVersionPreview();
+    syncScreen();
   }
 
   function selectProject(project, announce = true, closeChoice = true, restoreHistory = false) {
@@ -448,6 +472,7 @@
     }
     elements.projectChoice.hidden = projects.length === 1;
     elements.projectList.value = "0";
+    syncScreen();
     setProjectState(
       projects.length === 1
         ? text("oneProject")
@@ -504,6 +529,7 @@
     try {
       await writeClipboard(value);
       showCopyFeedback("logCopied", "success");
+      track("log_copied");
     } catch {
       showCopyFeedback("logCopyFailed", "error");
     }
@@ -544,6 +570,7 @@
       window.clearInterval(timer);
       timer = null;
     }
+    syncScreen();
   }
 
   function renderResult(result) {
@@ -601,6 +628,7 @@
     if (!invoke || !selectedProject || running) return;
     const project = { ...selectedProject };
     const settings = currentBuildSettings();
+    resultProjectPath = project.path;
     let historyResult = "failed";
     logLines.splice(0);
     elements.buildLog.textContent = "";
@@ -622,7 +650,8 @@
           outputs: project.type === "flutter" ? settings.outputs : [],
           jobs: settings.jobs,
           clean: settings.clean,
-          locale
+          locale,
+          projectType: project.type
         }
       });
       if (logLines.length === 0) {
@@ -662,6 +691,8 @@
   }
 
   async function initialize() {
+    window.addEventListener("error", (event) => track("js_error", String(event.message || "error")));
+    window.addEventListener("unhandledrejection", (event) => track("js_rejection", String(event.reason?.message || event.reason || "rejection")));
     applyLocale();
     setPipeline(null);
     renderHistory();
@@ -696,6 +727,7 @@
     });
     if (listen) await listen("build-log", ({ payload }) => appendLog(payload));
     if (!invoke || !openDialog) setProjectState(text("desktopOnly"), "error");
+    syncScreen();
   }
 
   initialize().catch((error) => setProjectState(String(error), "error"));

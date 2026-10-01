@@ -193,6 +193,21 @@ cargo tauri build
 
 GUI 빌드는 `--non-interactive --no-publish`로 고정되며, 한 번에 하나만 실행한다. 디자인 토큰은 [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md)에 있다.
 
+### 데스크톱 앱 계측
+
+앱 사용 계측(analytics-core, 앱 슬러그 `ubs-desktop`)은 Rust 쪽 `desktop/src-tauri/src/analytics.rs` 가 보낸다. 이벤트 목록과 속성 규칙은 그 파일 머리 주석이 정본이다. 프로젝트 경로·이름은 보내지 않는다.
+
+- 키: `ANALYTICS_TOKEN` 을 빌드 환경변수 · `desktop/.env` · 레포 루트 `.env` 순으로 읽어 `build.rs` 가 컴파일 타임에 넣는다. 없으면 `cargo:warning` 을 남기고 **계측이 꺼진 채** 빌드된다.
+- 릴리스 산출물 확인(값은 출력하지 않는다):
+
+  ```bash
+  T=$(grep -m1 '^ANALYTICS_TOKEN=' .env | cut -d= -f2-)
+  strings <UBS.app>/Contents/MacOS/ubs-desktop | grep -cF "$T"   # 1 이어야 한다. 0 이면 계측 없이 구워진 것
+  ```
+
+- 디버그 빌드(`cargo run`)는 `is_debug` 를 달아 수신 서버가 저장하지 않는다(사유만 `ingest_verdicts` 에 남는다).
+- Mac App Store 샌드박스는 `com.apple.security.network.client` entitlement 가 있어야 전송된다.
+
 ## MCP 서버
 
 ```bash

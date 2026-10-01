@@ -12,7 +12,10 @@ use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter, Manager, State};
 
+mod analytics;
+
 const MAX_CAPTURED_BYTES: usize = 1024 * 1024;
+const NO_PROJECTS_MESSAGE: &str = "빌드 가능한 프로젝트를 찾지 못했습니다.";
 
 #[derive(Default)]
 struct ProcessSlot {
@@ -33,6 +36,9 @@ struct BuildRequest {
     jobs: u8,
     clean: bool,
     locale: String,
+    /// 계측 전용(허용 목록으로 좁힌 뒤 `project_type` 만 싣는다). 빌드 명령에는 안 쓴다.
+    #[serde(default)]
+    project_type: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -79,6 +85,17 @@ struct PreparedBuild {
 
 #[tauri::command]
 async fn detect_projects(app: AppHandle, root: String) -> Result<Value, String> {
+    analytics::detect_started();
+    let result = detect_projects_inner(app, root).await;
+    analytics::detect_finished(match &result {
+        Ok(value) => Ok(value.as_array().map_or(0, Vec::len)),
+        Err(message) if message == NO_PROJECTS_MESSAGE => Err("no_project"),
+        Err(_) => Err("detect_error"),
+    });
+    result
+}
+
+async fn detect_projects_inner(app: AppHandle, root: String) -> Result<Value, String> {
     let root = canonical_directory(&root)?;
     let runtime_root = runtime_root(&app)?;
     tauri::async_runtime::spawn_blocking(move || {
@@ -94,7 +111,7 @@ async fn detect_projects(app: AppHandle, root: String) -> Result<Value, String> 
         }
         let stderr = strip_ansi(&String::from_utf8_lossy(&output.stderr));
         Err(if stderr.trim().is_empty() {
-            "빌드 가능한 프로젝트를 찾지 못했습니다.".to_string()
+            NO_PROJECTS_MESSAGE.to_string()
         } else {
             stderr.trim().to_string()
         })
@@ -115,19 +132,52 @@ async fn run_build(
     state: State<'_, BuildState>,
     request: BuildRequest,
 ) -> Result<BuildResult, String> {
-    let prepared = prepare_build(&app, request)?;
+    let project_type = analytics::project_type(request.project_type.as_deref());
+    let prepared = prepare_build(&app, request).inspect_err(|_| {
+        analytics::build_rejected("invalid_request");
+    })?;
     let shared = state.0.clone();
     {
         let mut slot = shared
             .lock()
             .map_err(|_| "빌드 상태 잠금이 손상되었습니다.".to_string())?;
         if slot.active {
+            analytics::build_rejected("busy");
             return Err("이미 실행 중인 빌드가 있습니다.".to_string());
         }
         slot.active = true;
         slot.cancelled = false;
     }
 
+    let track = analytics::build_started(
+        project_type,
+        &prepared.outputs,
+        &prepared.version_bump,
+        prepared.jobs,
+        prepared.clean,
+    );
+    let result = run_build_tracked(app, shared, prepared).await;
+    analytics::build_finished(
+        track,
+        match &result {
+            Ok(result) if result.success => analytics::BuildOutcome::Success {
+                artifacts: analytics::artifact_count(result.report.as_ref()),
+            },
+            Ok(result) if result.cancelled => analytics::BuildOutcome::Cancelled,
+            Ok(result) => analytics::BuildOutcome::Failed {
+                exit_code: result.exit_code,
+            },
+            Err(_) => analytics::BuildOutcome::Error,
+        },
+    );
+    result
+}
+
+async fn run_build_tracked(
+    app: AppHandle,
+    shared: Arc<Mutex<ProcessSlot>>,
+    prepared: PreparedBuild,
+) -> Result<BuildResult, String> {
     let worker_state = shared.clone();
     let result = tauri::async_runtime::spawn_blocking(move || {
         run_build_blocking(app, worker_state, prepared)
@@ -155,7 +205,25 @@ fn cancel_build(state: State<'_, BuildState>) -> Result<bool, String> {
 
 #[tauri::command]
 fn open_artifact_location(path: String) -> Result<(), String> {
-    let (path, is_file) = canonical_artifact_path(&path)?;
+    let result = open_artifact_location_inner(&path);
+    analytics::artifact_opened(result.is_ok());
+    result
+}
+
+/// UI 상태가 바뀔 때 부른다. 이름은 `analytics::SCREENS` 허용 목록으로만 받는다.
+#[tauri::command]
+fn analytics_screen(name: String) {
+    analytics::screen(&name);
+}
+
+/// 프론트 조작·오류. action 은 허용 목록으로만 받는다(`analytics::ui_event`).
+#[tauri::command]
+fn analytics_ui(action: String, detail: Option<String>) {
+    analytics::ui_event(&action, detail.as_deref());
+}
+
+fn open_artifact_location_inner(path: &str) -> Result<(), String> {
+    let (path, is_file) = canonical_artifact_path(path)?;
 
     #[cfg(target_os = "macos")]
     {
@@ -807,16 +875,23 @@ fn main() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(BuildState::default())
+        .setup(|app| {
+            analytics::init(app.handle());
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             detect_projects,
             preview_version,
             run_build,
             cancel_build,
-            open_artifact_location
+            open_artifact_location,
+            analytics_screen,
+            analytics_ui
         ])
         .build(tauri::generate_context!())
         .expect("UBS desktop 초기화 실패");
     app.run(|app_handle, event| {
+        let is_exit = matches!(event, tauri::RunEvent::Exit);
         let should_cancel = match event {
             tauri::RunEvent::Exit | tauri::RunEvent::ExitRequested { .. } => true,
             tauri::RunEvent::WindowEvent {
@@ -829,6 +904,9 @@ fn main() {
         if should_cancel {
             let state = app_handle.state::<BuildState>();
             let _ = request_cancellation(&state.0);
+        }
+        if is_exit {
+            analytics::flush(Duration::from_secs(2));
         }
     });
 }
